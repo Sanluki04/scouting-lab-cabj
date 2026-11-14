@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCOUTING LAB — Club Atlético Boca Juniors</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Navbar Blanca Editorial -->
+  <header class="bg-white text-[#050a14] border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-8">
+        <a href="#" onclick="filtrarEtapa('TODOS')" class="font-display text-2xl tracking-tight text-[#050a14] flex items-center gap-1">
+          scouting<span class="text-[#f5b800]">Lab</span>
+        </a>
+
+        <nav id="nav-filtros" class="hidden md:flex items-center gap-6 font-mono-tech text-xs uppercase tracking-wider text-slate-600">
+          <button onclick="filtrarEtapa('TODOS')" id="nav-TODOS" class="font-bold text-[#050a14] border-b-2 border-[#050a14] py-1">
+            Todos (<span id="badge-TODOS">0</span>)
+          </button>
+          <button onclick="filtrarEtapa('PENDIENTE')" id="nav-PENDIENTE" class="hover:text-[#050a14] py-1 transition">
+            Seguimiento (<span id="badge-PENDIENTE">0</span>)
+          </button>
+          <button onclick="filtrarEtapa('EN_PROGRESO')" id="nav-EN_PROGRESO" class="hover:text-[#050a14] py-1 transition">
+            Negociación (<span id="badge-EN_PROGRESO">0</span>)
+          </button>
+          <button onclick="filtrarEtapa('COMPLETADA')" id="nav-COMPLETADA" class="hover:text-[#050a14] py-1 transition">
+            Refuerzos (<span id="badge-COMPLETADA">0</span>)
+          </button>
+        </nav>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <span id="socket-status" class="font-mono-tech text-[10px] uppercase px-3 py-1.5 rounded-full border border-slate-300 text-slate-500 whitespace-nowrap">
+          Socket: Offline
+        </span>
+
+        <div id="user-info" class="hidden flex items-center gap-2.5">
+          <button onclick="abrirModalScouts()" class="font-mono-tech text-[11px] font-bold uppercase tracking-wider border border-[#050a14] text-[#050a14] hover:bg-[#f5b800] hover:border-[#f5b800] px-3.5 py-1.5 rounded-full transition whitespace-nowrap">
+            Scouts (<span id="badge-scouts">0</span>/5)
+          </button>
+          <span id="user-name" class="font-mono-tech text-xs font-bold uppercase text-slate-700 hidden sm:inline"></span>
+          <button onclick="logout()" class="font-mono-tech text-[11px] font-bold uppercase tracking-wider bg-[#050a14] text-white hover:bg-slate-800 px-4 py-2 rounded-full transition">
+            Salir
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Vista Login / Registro -->
+  <main id="auth-section" class="flex-1 flex items-center justify-center p-6">
+    <div class="w-full max-w-md bg-[#0b1324] border border-white/15 p-8 rounded-2xl shadow-2xl">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f5b800]/15 border border-[#f5b800]/30 mb-3">
+        <span class="w-2 h-2 rounded-full bg-[#f5b800]"></span>
+        <span class="font-mono-tech text-[10px] font-bold uppercase tracking-widest text-[#f5b800]">
+          CLUB ATLÉTICO BOCA JUNIORS • JWT AUTH
+        </span>
+      </div>
+      <h1 class="font-display text-4xl uppercase text-white leading-none mb-2">
+        SECRETARÍA TÉCNICA CABJ
+      </h1>
+      <p class="font-mono-tech text-xs text-slate-400 mb-6">
+        Plataforma exclusiva de scouting y mercado de pases para el cuerpo técnico de Boca Juniors.
+      </p>
+
+      <div class="flex gap-2 mb-6 border-b border-white/10 pb-3">
+        <button type="button" id="tab-login" onclick="switchTab('login')" class="pill-btn-white">
+          Iniciar Sesión
+        </button>
+        <button type="button" id="tab-register" onclick="switchTab('register')" class="pill-btn-outline">
+          Nuevo Scout
+        </button>
+      </div>
+
+      <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-4">
+        <div id="field-nombre" class="hidden">
+          <label class="block font-mono-tech text-[11px] uppercase text-slate-400 mb-1.5">Nombre del Scout</label>
+          <input type="text" id="nombre" class="w-full px-4 py-2.5 bg-[#050a14] border border-white/15 rounded-xl text-sm text-white focus:outline-none focus:border-[#f5b800]" placeholder="Ej: Santiago Perez" />
+        </div>
+        <div>
+          <label class="block font-mono-tech text-[11px] uppercase text-slate-400 mb-1.5">Email Institucional</label>
+          <input type="email" id="email" required class="w-full px-4 py-2.5 bg-[#050a14] border border-white/15 rounded-xl text-sm text-white focus:outline-none focus:border-[#f5b800]" placeholder="scout@bocajuniors.com.ar" />
+        </div>
+        <div>
+          <label class="block font-mono-tech text-[11px] uppercase text-slate-400 mb-1.5">Contraseña</label>
+          <input type="password" id="password" required minlength="6" class="w-full px-4 py-2.5 bg-[#050a14] border border-white/15 rounded-xl text-sm text-white focus:outline-none focus:border-[#f5b800]" placeholder="Mínimo 6 caracteres" />
+        </div>
+        <p id="auth-error" class="font-mono-tech text-xs text-red-400 bg-red-950/40 border border-red-500/30 p-3 rounded-xl hidden"></p>
+        <button type="submit" id="auth-btn" class="w-full pill-btn-white py-3 text-center mt-2">
+          ENTRAR A BOCA JUNIORS →
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Sugerencias mínimas -->
+  <datalist id="jugadores-sugeridos">
+    <option value="Leandro Paredes — Mediocentro">
+  </datalist>
+
+  <datalist id="clubes-sugeridos">
+    <option value="AS Roma">
+  </datalist>
+
+  <!-- Vista Principal Editorial -->
+  <section id="board-section" class="hidden flex-1 max-w-7xl w-full mx-auto px-6 py-10">
+
+    <!-- Cabecera Institucional Boca Juniors + Formulario -->
+    <div class="pb-8 border-b border-white/15 mb-6">
+      <div class="bg-[#0b1324] border-l-4 border-l-[#f5b800] border border-white/10 px-5 py-3.5 rounded-r-xl mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="font-display text-xl uppercase tracking-wide text-[#f5b800]">
+            CLUB ATLÉTICO BOCA JUNIORS
+          </span>
+          <span class="text-white/25">|</span>
+          <span class="font-mono-tech text-xs uppercase text-slate-200">
+            Departamento de Scouting &amp; Mercado de Pases
+          </span>
+        </div>
+        <span class="font-mono-tech text-[10px] uppercase tracking-widest bg-[#f5b800]/15 text-[#f5b800] border border-[#f5b800]/30 px-3 py-1 rounded-full">
+          Mesa Colaborativa (5 Scouts)
+        </span>
+      </div>
+
+      <div class="flex flex-wrap justify-between items-end gap-4 mb-6">
+        <div>
+          <p class="font-mono-tech text-xs uppercase tracking-widest text-slate-400 mb-1">
+            DEPARTAMENTO DE DATOS Y CAPTACIÓN • CABJ
+          </p>
+          <h2 class="font-display text-4xl sm:text-5xl uppercase text-white leading-none">
+            PERFILANDO REFUERZOS PARA BOCA
+          </h2>
+        </div>
+
+        <div class="w-full sm:w-80">
+          <input
+            type="text"
+            id="buscador"
+            list="jugadores-sugeridos"
+            oninput="renderizarListado()"
+            placeholder="Buscar jugador, club, característica o scout..."
+            class="w-full px-4 py-2 bg-[#0b1324] border border-white/15 rounded-full font-mono-tech text-xs text-white focus:outline-none focus:border-[#f5b800]"
+          />
+        </div>
+      </div>
+
+      <!-- Formulario de Alta -->
+      <form onsubmit="crearJugador(event)" class="bg-[#0b1324] border border-white/10 p-6 rounded-2xl space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+          <div class="md:col-span-4">
+            <label class="block font-mono-tech text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">Jugador y Posición</label>
+            <input
+              type="text"
+              id="titulo"
+              list="jugadores-sugeridos"
+              required
+              minlength="3"
+              class="w-full px-3.5 py-2.5 bg-[#050a14] border border-white/15 rounded-xl text-sm text-white focus:outline-none focus:border-[#f5b800]"
+              placeholder="Ej: Leandro Paredes — Mediocentro"
+            />
+          </div>
+
+          <div class="md:col-span-3">
+            <label class="block font-mono-tech text-[10px] uppercase tracking-wider text-sky-400 mb-1.5">Club Actual</label>
+            <input
+              type="text"
+              id="club"
+              list="clubes-sugeridos"
+              class="w-full px-3.5 py-2.5 bg-[#050a14] border border-white/15 rounded-xl text-sm text-white focus:outline-none focus:border-[#f5b800]"
+              placeholder="Ej: AS Roma"
+            />
+          </div>
+
+          <div class="md:col-span-3">
+            <label class="block font-mono-tech text-[10px] uppercase tracking-wider text-[#f5b800] mb-1.5">Cotización Estimada</label>
+            <input
+              type="text"
+              id="monto"
+              oninput="formatearMontoEnVivo(this)"
+              onblur="formatearMontoEnVivo(this, true)"
+              class="w-full px-3.5 py-2.5 bg-[#050a14] border border-white/15 rounded-xl font-mono-tech text-sm font-bold text-emerald-400 focus:outline-none focus:border-[#f5b800]"
+              placeholder="Ej: 8000000 o 8m"
+            />
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block font-mono-tech text-[10px] uppercase tracking-wider text-slate-300 mb-1.5">Año/s Contractual</label>
+            <input
+              type="text"
+              id="contrato"
+              onblur="formatearContrato(this)"
+              class="w-full px-3.5 py-2.5 bg-[#050a14] border border-white/15 rounded-xl font-mono-tech text-sm text-amber-300 focus:outline-none focus:border-[#f5b800]"
+              placeholder="Ej: 2a o 1a 6m"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-mono-tech text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">
+            Características del Jugador (Visión, Pase, Cabeceo, Pegada, Velocidad, etc.)
+          </label>
+          <input
+            type="text"
+            id="caracteristicas"
+            class="w-full px-3.5 py-2.5 bg-[#050a14] border border-white/15 rounded-xl text-sm text-white focus:outline-none focus:border-[#f5b800]"
+            placeholder="Ej: Visión de juego, pase filtrado, pegada de media distancia y recuperación"
+          />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pt-2 border-t border-white/10">
+          <div class="md:col-span-8">
+            <label class="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#050a14] border border-dashed border-white/20 hover:border-[#f5b800] rounded-xl cursor-pointer transition group">
+              <div class="flex items-center gap-3 overflow-hidden">
+                <span class="font-mono-tech text-[11px] font-bold uppercase text-[#f5b800] shrink-0">
+                  📎 FOTO / INFORME PDF (OPCIONAL):
+                </span>
+                <span id="nombre-archivo-alta" class="font-mono-tech text-xs text-slate-400 truncate group-hover:text-white">
+                  Ningún archivo seleccionado
+                </span>
+              </div>
+              <span class="font-mono-tech text-[10px] uppercase px-3 py-1 rounded-full bg-white/10 text-white shrink-0">
+                EXAMINAR
+              </span>
+              <input
+                type="file"
+                id="archivo-alta"
+                accept="image/*,.pdf"
+                class="hidden"
+                onchange="actualizarNombreArchivoAlta(this)"
+              />
+            </label>
+          </div>
+
+          <div class="md:col-span-4 flex justify-end">
+            <button type="submit" id="btn-crear-ficha" class="w-full pill-btn-white py-3 text-center">
+              + PROPONER PARA BOCA
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <!-- Filtros móviles de etapa -->
+      <div class="flex md:hidden flex-wrap gap-2 mt-4">
+        <button onclick="filtrarEtapa('TODOS')" class="pill-btn-outline text-[10px]">Todos</button>
+        <button onclick="filtrarEtapa('PENDIENTE')" class="pill-btn-outline text-[10px]">Seguimiento</button>
+        <button onclick="filtrarEtapa('EN_PROGRESO')" class="pill-btn-outline text-[10px]">Negociación</button>
+        <button onclick="filtrarEtapa('COMPLETADA')" class="pill-btn-outline text-[10px]">Refuerzos</button>
+      </div>
+    </div>
+
+    <!-- Barra de Filtros por Posición -->
+    <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/10">
+      <span class="font-mono-tech text-[11px] uppercase tracking-wider text-slate-400">
+        Filtrar por línea / posición:
+      </span>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="filtrarPosicion('TODAS')" id="pos-TODAS" class="pill-btn-white text-[10px] py-1.5 px-4">
+          Todas las posiciones
+        </button>
+        <button onclick="filtrarPosicion('ARQUERO')" id="pos-ARQUERO" class="pill-btn-outline text-[10px] py-1.5 px-4">
+          Arqueros
+        </button>
+        <button onclick="filtrarPosicion('DEFENSOR')" id="pos-DEFENSOR" class="pill-btn-outline text-[10px] py-1.5 px-4">
+          Defensores
+        </button>
+        <button onclick="filtrarPosicion('MEDIOCAMPISTA')" id="pos-MEDIOCAMPISTA" class="pill-btn-outline text-[10px] py-1.5 px-4">
+          Mediocampistas
+        </button>
+        <button onclick="filtrarPosicion('DELANTERO')" id="pos-DELANTERO" class="pill-btn-outline text-[10px] py-1.5 px-4">
+          Delanteros
+        </button>
+      </div>
+    </div>
+
+    <!-- Listado Editorial de Jugadores -->
+    <div id="lista-jugadores" class="divide-y divide-white/10"></div>
+
+    <!-- Estado vacío -->
+    <div id="empty-state" class="hidden py-16 text-center">
+      <p class="font-mono-tech text-xs uppercase tracking-widest text-slate-500">
+        No hay jugadores registrados con los filtros seleccionados.
+      </p>
+    </div>
+
+  </section>
+
+  <!-- Modal Cuerpo Técnico de Scouts -->
+  <div id="modal-scouts" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-xl bg-[#0b1324] border border-white/20 rounded-2xl p-6 shadow-2xl space-y-5">
+      <div class="flex justify-between items-start border-b border-white/10 pb-4">
+        <div>
+          <p class="font-mono-tech text-[10px] uppercase tracking-widest text-[#f5b800]">
+            CUERPO TÉCNICO • CABJ
+          </p>
+          <h3 class="font-display text-3xl uppercase text-white">
+            SCOUTS DE BOCA JUNIORS (<span id="modal-scouts-count">0</span>/5)
+          </h3>
+        </div>
+        <button onclick="cerrarModalScouts()" class="font-mono-tech text-xs uppercase px-3 py-1.5 rounded-full border border-white/20 text-slate-300 hover:text-white">
+          ✕ CERRAR
+        </button>
+      </div>
+
+      <p id="subtitulo-modal-scouts" class="font-mono-tech text-xs text-slate-400">
+        Integrantes activos de la Secretaría Técnica del Club Atlético Boca Juniors.
+      </p>
+
+      <div id="lista-scouts-admin" class="divide-y divide-white/10 max-h-72 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- Toast Socket.IO -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 bg-white text-[#050a14] font-mono-tech font-bold text-xs px-5 py-3 rounded-full shadow-2xl border border-slate-300 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none">
+  </div>
+
+  <script>
+    const API_URL = 'http://127.0.0.1:3000/api';
+    const BASE_URL = 'http://127.0.0.1:3000';
+    let authMode = 'login';
+    let socket = null;
+    let cacheJugadores = [];
+    let cacheScouts = [];
+    let currentUser = null;
+    let etapaActiva = 'TODOS';
+    let posicionActiva = 'TODAS';
+
+    window.onload = () => {
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user') || 'null');
+      if (token && user) iniciarApp(user);
+    };
+
+    function formatearContrato(input) {
+      const raw = input.value.trim().toLowerCase();
+      if (!raw) return;
+
+      const matchAnios = raw.match(/(\d+)\s*a(?:ños|ño)?\b/);
+      const matchMeses = raw.match(/(\d+)\s*m(?:eses|es)?\b/);
+
+      const partes = [];
+      if (matchAnios) {
+        const n = parseInt(matchAnios[1], 10);
+        partes.push(n === 1 ? '1 año' : `${n} años`);
+      }
+      if (matchMeses) {
+        const m = parseInt(matchMeses[1], 10);
+        partes.push(m === 1 ? '1 mes' : `${m} meses`);
+      }
+
+      if (partes.length > 0) {
+        input.value = partes.join(' y ');
+      }
+    }
+
+    function actualizarNombreArchivoAlta(input) {
+      const label = document.getElementById('nombre-archivo-alta');
+      if (input.files && input.files[0]) {
+        label.innerText = input.files[0].name;
+        label.classList.remove('text-slate-400');
+        label.classList.add('text-emerald-400', 'font-bold');
+      } else {
+        label.innerText = 'Ningún archivo seleccionado';
+        label.classList.remove('text-emerald-400', 'font-bold');
+        label.classList.add('text-slate-400');
+      }
+    }
+
+    function formatearMontoEnVivo(input, esBlur = false) {
+      const posCursor = input.selectionStart || 0;
+      const textoAntesCursor = input.value.slice(0, posCursor);
+      const digitosAntesCursor = textoAntesCursor.replace(/\D/g, '').length;
+
+      let raw = input.value.trim().toLowerCase();
+      if (!raw) return;
+
+      const matchTexto = raw.match(/^\$?\s*([\d.,]+)\s*(millones|millón|millon|m|mil|k)\b/);
+      if (matchTexto) {
+        let base = parseFloat(matchTexto[1].replace(',', '.'));
+        const unidad = matchTexto[2];
+        if (!isNaN(base)) {
+          if (unidad.startsWith('m')) base = Math.round(base * 1_000_000);
+          else if (unidad === 'mil' || unidad === 'k') base = Math.round(base * 1_000);
+          input.value = `$ ${base.toLocaleString('es-AR')}`;
+          return;
+        }
+      }
+
+      if (!/[a-z]/.test(raw) || esBlur) {
+        const soloDigitos = raw.replace(/\D/g, '');
+        if (!soloDigitos) {
+          input.value = '';
+          return;
+        }
+
+        const numero = parseInt(soloDigitos, 10);
+        const formateado = `$ ${numero.toLocaleString('es-AR')}`;
+        input.value = formateado;
+
+        if (!esBlur && document.activeElement === input) {
+          let digitosVistos = 0;
+          let nuevaPos = formateado.length;
+
+          for (let i = 0; i < formateado.length; i++) {
+            if (/\d/.test(formateado[i])) digitosVistos++;
+            if (digitosVistos === digitosAntesCursor) {
+              nuevaPos = i + 1;
+              break;
+            }
+          }
+          if (digitosAntesCursor === 0) nuevaPos = 2;
+          input.setSelectionRange(nuevaPos, nuevaPos);
+        }
+      }
+    }
+
+    function mostrarToast(texto) {
+      const toast = document.getElementById('toast');
+      toast.innerText = `⚡ CABJ EN VIVO: ${texto}`;
+      toast.classList.remove('translate-y-24', 'opacity-0');
+      setTimeout(() => toast.classList.add('translate-y-24', 'opacity-0'), 3200);
+    }
+
+    function switchTab(mode) {
+      authMode = mode;
+      const isRegister = mode === 'register';
+      document.getElementById('field-nombre').classList.toggle('hidden', !isRegister);
+      document.getElementById('nombre').required = isRegister;
+      document.getElementById('auth-btn').innerText = isRegister ? 'DAR DE ALTA SCOUT →' : 'ENTRAR A BOCA JUNIORS →';
+      document.getElementById('tab-login').className = isRegister ? 'pill-btn-outline' : 'pill-btn-white';
+      document.getElementById('tab-register').className = isRegister ? 'pill-btn-white' : 'pill-btn-outline';
+      document.getElementById('auth-error').classList.add('hidden');
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const errorEl = document.getElementById('auth-error');
+      const authBtn = document.getElementById('auth-btn');
+      errorEl.classList.add('hidden');
+
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const password = document.getElementById('password').value;
+      const body = { email, password };
+
+      if (authMode === 'register') {
+        body.nombre = document.getElementById('nombre').value.trim();
+      }
+
+      const textoOriginal = authBtn.innerText;
+      authBtn.disabled = true;
+      authBtn.innerText = 'VERIFICANDO...';
+
+      try {
+        const res = await fetch(`${API_URL}/usuarios/auth/${authMode}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          const msg = Array.isArray(data.message) ? data.message.join(', ') : (data.message || 'Error de autenticación');
+          throw new Error(msg);
+        }
+
+        const token = data.token || data.access_token;
+        const usuario = data.usuario || { nombre: body.nombre || email.split('@')[0], email };
+
+        if (!token) throw new Error('El servidor no devolvió un token válido.');
+
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(usuario));
+        iniciarApp(usuario);
+      } catch (err) {
+        errorEl.innerText = err.message;
+        errorEl.classList.remove('hidden');
+      } finally {
+        authBtn.disabled = false;
+        authBtn.innerText = textoOriginal;
+      }
+    }
+
+    function iniciarApp(user) {
+      currentUser = user;
+      document.getElementById('auth-section').classList.add('hidden');
+      document.getElementById('board-section').classList.remove('hidden');
+      document.getElementById('user-info').classList.remove('hidden');
+      document.getElementById('user-name').innerText = user.nombre || user.email;
+
+      conectarSocket();
+      cargarJugadores();
+      cargarScouts();
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      if (socket) socket.disconnect();
+      location.reload();
+    }
+
+    function conectarSocket() {
+      socket = io(BASE_URL);
+      const badge = document.getElementById('socket-status');
+
+      socket.on('connect', () => {
+        badge.innerText = `EN VIVO (${socket.id.slice(0, 5)})`;
+        badge.className = 'font-mono-tech text-[10px] font-bold uppercase px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 whitespace-nowrap';
+      });
+
+      socket.on('disconnect', () => {
+        badge.innerText = 'Socket: Offline';
+        badge.className = 'font-mono-tech text-[10px] uppercase px-3 py-1.5 rounded-full border border-slate-300 text-slate-500 whitespace-nowrap';
+      });
+
+      socket.on('tarea-creada', (data) => {
+        mostrarToast(`Nuevo objetivo propuesto: ${data.titulo}`);
+        cargarJugadores();
+      });
+
+      socket.on('tarea-actualizada', (data) => {
+        mostrarToast(`Estado actualizado: ${data.titulo}`);
+        cargarJugadores();
+      });
+
+      socket.on('archivo-adjuntado', (data) => {
+        mostrarToast(`Informe/foto cargado: ${data.titulo}`);
+        cargarJugadores();
+      });
+
+      socket.on('tarea-eliminada', () => {
+        mostrarToast('Jugador descartado de carpeta');
+        cargarJugadores();
+      });
+    }
+
+    // --- Gestión de Scouts ---
+    async function cargarScouts() {
+      try {
+        const res = await fetch(`${API_URL}/usuarios`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        cacheScouts = Array.isArray(data) ? data : (data.usuarios || []);
+        document.getElementById('badge-scouts').innerText = cacheScouts.length;
+        document.getElementById('modal-scouts-count').innerText = cacheScouts.length;
+        renderizarScoutsAdmin();
+      } catch (e) {
+        console.error('Error cargando scouts:', e);
+      }
+    }
+
+    function abrirModalScouts() {
+      cargarScouts();
+      document.getElementById('modal-scouts').classList.remove('hidden');
+    }
+
+    function cerrarModalScouts() {
+      document.getElementById('modal-scouts').classList.add('hidden');
+    }
+
+    function renderizarScoutsAdmin() {
+      const lista = document.getElementById('lista-scouts-admin');
+      const subtitulo = document.getElementById('subtitulo-modal-scouts');
+      lista.innerHTML = '';
+
+      const adminId = cacheScouts[0]?.id;
+      const soyAdmin = currentUser && adminId && currentUser.id === adminId;
+
+      subtitulo.innerText = soyAdmin
+        ? 'Tenés permisos de Administrador: podés dar de baja scouts (sus fichas quedarán como EX SCOUTER).'
+        : 'Vista de compañeros de la Secretaría Técnica de Boca Juniors (solo el Administrador puede dar de baja integrantes).';
+
+      cacheScouts.forEach((s, idx) => {
+        const esMismoUsuario = currentUser && (s.id === currentUser.id || s.email === currentUser.email);
+        const esElAdmin = s.id === adminId;
+        const item = document.createElement('div');
+        item.className = 'py-3.5 flex items-center justify-between gap-4';
+
+        let accionHtml = '';
+        if (esElAdmin) {
+          accionHtml = '<span class="font-mono-tech text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-[#f5b800]/15 text-[#f5b800]">ADMIN / DIRECTOR</span>';
+        } else if (soyAdmin && !esMismoUsuario) {
+          accionHtml = `<button onclick="eliminarScout(${s.id}, '${s.nombre}')" class="font-mono-tech text-[10px] font-bold uppercase px-3 py-1.5 rounded-full border border-red-500/40 text-red-400 hover:bg-red-500 hover:text-white transition">
+            ELIMINAR
+          </button>`;
+        } else {
+          accionHtml = '<span class="font-mono-tech text-[10px] uppercase text-slate-500">SCOUT ACTIVO</span>';
+        }
+
+        item.innerHTML = `
+          <div>
+            <p class="font-mono-tech text-xs font-bold uppercase text-white">
+              SCOUT #${idx + 1}: ${s.nombre}
+              ${esMismoUsuario ? '<span class="ml-2 text-[10px] text-[#f5b800]">(VOS)</span>' : ''}
+            </p>
+            <p class="font-mono-tech text-[11px] text-slate-400">${s.email}</p>
+          </div>
+          <div>${accionHtml}</div>
+        `;
+        lista.appendChild(item);
+      });
+    }
+
+    async function eliminarScout(id, nombre) {
+      if (!confirm(`¿Seguro que querés dar de baja a ${nombre}? Sus fichas propuestas quedarán en el tablero como EX SCOUTER.`)) return;
+      const res = await fetch(`${API_URL}/usuarios/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) {
+        mostrarToast(`Scout ${nombre} dado de baja (fichas conservadas como EX SCOUTER)`);
+        cargarScouts();
+        cargarJugadores();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Solo el Administrador puede eliminar scouts.');
+      }
+    }
+
+    // --- Gestión de Jugadores ---
+    async function cargarJugadores() {
+      const res = await fetch(`${API_URL}/tareas`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.status === 401) return logout();
+      const data = await res.json();
+      cacheJugadores = data.tareas || [];
+      actualizarContadores();
+      renderizarListado();
+    }
+
+    function actualizarContadores() {
+      document.getElementById('badge-TODOS').innerText = cacheJugadores.length;
+      document.getElementById('badge-PENDIENTE').innerText = cacheJugadores.filter((j) => j.estado === 'PENDIENTE').length;
+      document.getElementById('badge-EN_PROGRESO').innerText = cacheJugadores.filter((j) => j.estado === 'EN_PROGRESO').length;
+      document.getElementById('badge-COMPLETADA').innerText = cacheJugadores.filter((j) => j.estado === 'COMPLETADA').length;
+    }
+
+    function filtrarEtapa(etapa) {
+      etapaActiva = etapa;
+      ['TODOS', 'PENDIENTE', 'EN_PROGRESO', 'COMPLETADA'].forEach((id) => {
+        const btn = document.getElementById(`nav-${id}`);
+        if (btn) {
+          btn.className = id === etapa
+            ? 'font-bold text-[#050a14] border-b-2 border-[#050a14] py-1'
+            : 'hover:text-[#050a14] py-1 transition';
+        }
+      });
+      renderizarListado();
+    }
+
+    function filtrarPosicion(pos) {
+      posicionActiva = pos;
+      ['TODAS', 'ARQUERO', 'DEFENSOR', 'MEDIOCAMPISTA', 'DELANTERO'].forEach((id) => {
+        const btn = document.getElementById(`pos-${id}`);
+        if (btn) {
+          btn.className = id === pos
+            ? 'pill-btn-white text-[10px] py-1.5 px-4'
+            : 'pill-btn-outline text-[10px] py-1.5 px-4';
+        }
+      });
+      renderizarListado();
+    }
+
+    function coincidePosicion(titulo, posFiltro) {
+      if (posFiltro === 'TODAS') return true;
+      const t = titulo.toLowerCase();
+
+      if (posFiltro === 'ARQUERO') {
+        return /\b(arquero|portero|guardameta|gk)\b/.test(t);
+      }
+      if (posFiltro === 'DEFENSOR') {
+        return /\b(defensor|defensa|central|lateral|carrilero|zaguero|marcador)\b/.test(t);
+      }
+      if (posFiltro === 'MEDIOCAMPISTA') {
+        return /\b(mediocentro|mediocampista|volante|enganche|mediapunta|interior|pivote|cinco|5)\b/.test(t);
+      }
+      if (posFiltro === 'DELANTERO') {
+        return /\b(delantero|extremo|atacante|punta|centrodelantero|ariete|winger|9)\b/.test(t);
+      }
+      return true;
+    }
+
+    function esImagen(ruta) {
+      return /\.(jpg|jpeg|png|webp|gif)$/i.test(ruta);
+    }
+
+    function parsearDescripcion(desc) {
+      if (!desc) return { club: '', montoBadge: '', contrato: '', caracteristicas: '' };
+
+      let texto = desc;
+      let club = '';
+      let montoBadge = '';
+      let contrato = '';
+
+      const mClub = texto.match(/\[Club:\s*([^\]]+)\]/);
+      if (mClub) {
+        club = mClub[1];
+        texto = texto.replace(mClub[0], '');
+      }
+
+      const mMonto = texto.match(/\[Cotización:\s*([^\]]+)\]/);
+      if (mMonto) {
+        montoBadge = mMonto[1];
+        texto = texto.replace(mMonto[0], '');
+      }
+
+      const mContrato = texto.match(/\[Contrato:\s*([^\]]+)\]/);
+      if (mContrato) {
+        contrato = mContrato[1];
+        texto = texto.replace(mContrato[0], '');
+      }
+
+      return {
+        club,
+        montoBadge,
+        contrato,
+        caracteristicas: texto.trim(),
+      };
+    }
+
+    function obtenerMetaEstado(estado) {
+      if (estado === 'PENDIENTE') {
+        return {
+          etiqueta: 'EN SEGUIMIENTO / OJEO',
+          colorTexto: 'text-sky-400',
+          botonesHtml: (id) => `
+            <button onclick="cambiarEstado(${id}, 'EN_PROGRESO')" class="pill-btn-white">
+              INICIAR NEGOCIACIÓN →
+            </button>`,
+        };
+      }
+      if (estado === 'EN_PROGRESO') {
+        return {
+          etiqueta: 'EN NEGOCIACIÓN ACTIVA',
+          colorTexto: 'text-[#f5b800]',
+          botonesHtml: (id) => `
+            <div class="flex flex-wrap items-center gap-3">
+              <button onclick="cambiarEstado(${id}, 'COMPLETADA')" class="pill-btn-white">
+                CONFIRMAR REFUERZO ✓
+              </button>
+              <button onclick="cambiarEstado(${id}, 'PENDIENTE')" class="pill-btn-outline">
+                ← VOLVER A OJEO
+              </button>
+            </div>`,
+        };
+      }
+      return {
+        etiqueta: 'REFUERZO CONFIRMADO CABJ',
+        colorTexto: 'text-emerald-400',
+        botonesHtml: (id) => `
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="font-mono-tech text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-4 py-2 rounded-full">
+              ✓ INCORPORADO A BOCA
+            </span>
+            <button onclick="cambiarEstado(${id}, 'EN_PROGRESO')" class="pill-btn-outline">
+              REABRIR NEGOCIACIÓN
+            </button>
+          </div>`,
+      };
+    }
+
+    function renderizarListado() {
+      const contenedor = document.getElementById('lista-jugadores');
+      const empty = document.getElementById('empty-state');
+      const texto = document.getElementById('buscador').value.toLowerCase();
+
+      const filtrados = cacheJugadores.filter((j) => {
+        const coincideEtapa = etapaActiva === 'TODOS' || j.estado === etapaActiva;
+        const okPosicion = coincidePosicion(j.titulo, posicionActiva);
+        const nombreScout = j.creadoPor?.nombre || 'ex scouter';
+        const coincideTexto =
+          j.titulo.toLowerCase().includes(texto) ||
+          (j.descripcion && j.descripcion.toLowerCase().includes(texto)) ||
+          nombreScout.toLowerCase().includes(texto);
+        return coincideEtapa && okPosicion && coincideTexto;
+      });
+
+      contenedor.innerHTML = '';
+
+      if (filtrados.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      filtrados.forEach((j) => {
+        const { club, montoBadge, contrato, caracteristicas } = parsearDescripcion(j.descripcion);
+        const meta = obtenerMetaEstado(j.estado);
+
+        const scoutHtml = j.creadoPor?.nombre
+          ? `<span class="text-[#f5b800] font-bold">${j.creadoPor.nombre}</span>`
+          : `<span class="text-slate-400 italic font-bold">EX SCOUTER</span>`;
+
+        let mediaBloque = '';
+        if (j.archivoAdjunto) {
+          if (esImagen(j.archivoAdjunto)) {
+            mediaBloque = `
+              <div class="relative rounded-2xl overflow-hidden border border-white/15 bg-[#0b1324] flex flex-col items-center justify-center">
+                <img src="${BASE_URL}${j.archivoAdjunto}" alt="${j.titulo}" class="w-full max-h-64 object-contain p-2" />
+                <a href="${BASE_URL}${j.archivoAdjunto}" target="_blank" class="w-full text-center font-mono-tech text-[10px] uppercase tracking-wider bg-white/5 hover:bg-white/10 text-slate-300 py-2 border-t border-white/10 transition">
+                  VER PERFIL VISUAL COMPLETO ↗
+                </a>
+              </div>`;
+          } else {
+            mediaBloque = `
+              <div class="h-44 rounded-2xl border border-white/15 bg-[#0b1324] flex flex-col items-center justify-center p-6 text-center gap-3">
+                <span class="font-mono-tech text-xs uppercase tracking-widest text-[#f5b800]">INFORME TÉCNICO ADJUNTO</span>
+                <a href="${BASE_URL}${j.archivoAdjunto}" target="_blank" class="pill-btn-white">
+                  ABRIR DOCUMENTO PDF ↗
+                </a>
+              </div>`;
+          }
+        } else {
+          mediaBloque = `
+            <label class="h-44 rounded-2xl border border-dashed border-white/20 hover:border-[#f5b800] bg-[#0b1324]/60 hover:bg-[#0b1324] flex flex-col items-center justify-center p-6 text-center cursor-pointer transition group">
+              <span class="font-mono-tech text-xs uppercase tracking-wider text-slate-400 group-hover:text-white mb-2">
+                SIN IMAGEN / INFORME
+              </span>
+              <span class="pill-btn-outline group-hover:border-[#f5b800] group-hover:text-[#f5b800]">
+                + SUBIR FOTO O PDF (MULTER)
+              </span>
+              <input type="file" accept="image/*,.pdf" class="hidden" onchange="subirArchivo(${j.id}, this.files[0])" />
+            </label>`;
+        }
+
+        const row = document.createElement('article');
+        row.className = 'editorial-row py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center';
+
+        row.innerHTML = `
+          <!-- Columna Izquierda: Metadata Editorial -->
+          <div class="lg:col-span-3 space-y-2 self-start pt-1">
+            <p class="font-mono-tech text-xs font-bold uppercase tracking-widest ${meta.colorTexto}">
+              ${meta.etiqueta}
+            </p>
+            <p class="font-mono-tech text-[11px] text-slate-400 uppercase">
+              FICHA #${String(j.id).padStart(3, '0')} • CABJ SCOUTING
+            </p>
+            <p class="font-mono-tech text-[11px] text-slate-300 uppercase">
+              PROPUESTO POR: ${scoutHtml}
+            </p>
+
+            <div class="pt-2 flex flex-wrap gap-2">
+              ${club ? `
+                <span class="font-mono-tech text-xs font-bold text-sky-300 bg-sky-500/10 border border-sky-500/30 px-2.5 py-1 rounded-lg">
+                  🏟️ ${club}
+                </span>` : ''}
+              ${montoBadge ? `
+                <span class="font-mono-tech text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg">
+                  ${montoBadge}
+                </span>` : ''}
+              ${contrato ? `
+                <span class="font-mono-tech text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg">
+                  📄 Contrato: ${contrato}
+                </span>` : ''}
+            </div>
+          </div>
+
+          <!-- Columna Central: Titular Condensado + Características + Botones Píldora -->
+          <div class="lg:col-span-5 space-y-4">
+            <h3 class="font-display text-3xl sm:text-4xl uppercase text-white leading-[1.05]">
+              ${j.titulo}
+            </h3>
+            ${caracteristicas ? `
+              <div>
+                <p class="font-mono-tech text-[10px] uppercase tracking-wider text-slate-400 mb-1">
+                  CARACTERÍSTICAS DEL JUGADOR:
+                </p>
+                <p class="font-mono-tech text-xs sm:text-sm text-slate-200 leading-relaxed">
+                  ${caracteristicas}
+                </p>
+              </div>` : ''}
+            <div class="pt-2 flex flex-wrap items-center gap-3">
+              ${meta.botonesHtml(j.id)}
+              <button onclick="eliminarJugador(${j.id})" class="font-mono-tech text-[11px] uppercase text-slate-500 hover:text-red-400 px-2 py-1 transition" title="Eliminar ficha">
+                [DESCARTAR]
+              </button>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Visual / Multimedia -->
+          <div class="lg:col-span-4">
+            ${mediaBloque}
+          </div>
+        `;
+
+        contenedor.appendChild(row);
+      });
+    }
+
+    async function crearJugador(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-crear-ficha');
+      const titulo = document.getElementById('titulo').value.trim();
+      const club = document.getElementById('club').value.trim();
+
+      const montoInput = document.getElementById('monto');
+      formatearMontoEnVivo(montoInput, true);
+      const monto = montoInput.value.trim();
+
+      const contratoInput = document.getElementById('contrato');
+      formatearContrato(contratoInput);
+      const contrato = contratoInput.value.trim();
+
+      const caracteristicas = document.getElementById('caracteristicas').value.trim();
+      const archivoInput = document.getElementById('archivo-alta');
+      const file = archivoInput.files ? archivoInput.files[0] : null;
+
+      const etiquetas = [];
+      if (club) etiquetas.push(`[Club: ${club}]`);
+      if (monto) etiquetas.push(`[Cotización: ${monto}]`);
+      if (contrato) etiquetas.push(`[Contrato: ${contrato}]`);
+      if (caracteristicas) etiquetas.push(caracteristicas);
+
+      const descripcion = etiquetas.join(' ').trim();
+
+      btn.disabled = true;
+      btn.innerText = 'GUARDANDO...';
+
+      try {
+        const res = await fetch(`${API_URL}/tareas`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({ titulo, descripcion }),
+        });
+
+        const data = await res.json();
+        const nuevaTarea = data.tarea || data;
+
+        if (res.ok && file && nuevaTarea?.id) {
+          await subirArchivo(nuevaTarea.id, file);
+        }
+
+        document.getElementById('titulo').value = '';
+        document.getElementById('club').value = '';
+        document.getElementById('monto').value = '';
+        document.getElementById('contrato').value = '';
+        document.getElementById('caracteristicas').value = '';
+        archivoInput.value = '';
+        actualizarNombreArchivoAlta(archivoInput);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '+ PROPONER PARA BOCA';
+      }
+    }
+
+    async function cambiarEstado(id, estado) {
+      await fetch(`${API_URL}/tareas/${id}/estado`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ estado }),
+      });
+    }
+
+    async function subirArchivo(id, file) {
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+
+      await fetch(`${API_URL}/tareas/${id}/archivo`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+    }
+
+    async function eliminarJugador(id) {
+      await fetch(`${API_URL}/tareas/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+    }
+  </script>
+</body>
+</html>
