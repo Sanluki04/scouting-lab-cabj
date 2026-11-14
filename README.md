@@ -1,132 +1,89 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# ⚽ Scouting Lab CABJ — Secretaría Técnica & Mercado de Pases
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Aplicación Full Stack desarrollada como Trabajo Final de Backend en **NestJS**, orientada a la gestión colaborativa en tiempo real de la **Secretaría Técnica del Club Atlético Boca Juniors**.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+El sistema permite a un cuerpo técnico de hasta **5 scouts** proponer posibles refuerzos, analizar cotizaciones y contratos, adjuntar informes técnicos o fotografías, y gestionar el avance de las negociaciones sincronizando todos los cambios en vivo entre los integrantes conectados.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 🎯 ¿Para qué sirve?
 
-## Project setup
+Centraliza el seguimiento del mercado de pases del club en un tablero editorial compartido:
+1. **Ojeo / Seguimiento (`PENDIENTE`):** Los scouts cargan jugadores analizados con su club actual, cotización estimada, vigencia contractual, características técnicas e informes en PDF o imagen.
+2. **En Negociación (`EN_PROGRESO`):** Cuando el club avanza por un objetivo, cualquier integrante del equipo mueve la ficha a negociación activa y todos los scouts conectados ven la actualización al instante sin recargar la página.
+3. **Refuerzo Confirmado (`COMPLETADA`):** Registra los fichajes cerrados e incorporados al plantel.
 
-```bash
-$ npm install
-```
+---
 
-## Compile and run the project
+## ⚙️ Arquitectura y Tecnologías (Backend)
 
-```bash
-# development
-$ npm run start
+El servidor está construido con **NestJS** y **TypeScript**, cumpliendo con una arquitectura modular y los siguientes pilares técnicos:
 
-# watch mode
-$ npm run start:dev
+- **Persistencia Relacional (TypeORM + MySQL):** Modelado de entidades `Usuario` y `Tarea` (fichas de jugadores) con relación `@ManyToOne` y manejo seguro de bajas (`onDelete: 'SET NULL'`), asegurando que si un scout es dado de baja, sus fichas propuestas permanezcan en el historial del club bajo la etiqueta **`EX SCOUTER`**.
+- **Autenticación y Seguridad (JWT + bcrypt):** Registro e inicio de sesión con contraseñas encriptadas (`bcrypt`), normalización de correos y protección de rutas mediante `JwtAuthGuard` y estrategia Passport JWT.
+- **Validación de Datos (Joi + class-validator):**
+  - Validación estricta de variables de entorno al iniciar la aplicación con **Joi** (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`, `PORT`).
+  - Validación automática de DTOs de entrada mediante `ValidationPipe` global.
+- **Carga de Archivos (Multer):** Subida de fotografías de jugadores e informes técnicos en PDF asociados a cada ficha (`/api/tareas/:id/archivo`), servidos como archivos estáticos desde `/uploads`.
+- **Tiempo Real (Socket.IO):** Gateway de WebSockets (`TareasGateway`) que emite eventos en vivo (`tarea-creada`, `tarea-actualizada`, `archivo-adjuntado`, `tarea-eliminada`) a todos los clientes conectados.
+- **Servidor Estático Integrado (`ServeStaticModule`):** El propio backend sirve la interfaz web desde `public/` sin necesidad de levantar un servidor frontend separado.
 
-# production mode
-$ npm run start:prod
-```
+---
 
-## Run tests
+## 🖥️ Funcionalidades de la Interfaz Web (`public/`)
 
-```bash
-# unit tests
-$ npm run test
+- **Identidad Editorial Deportiva:** Diseño minimalista en tonos azul oscuro, blanco y oro (`#f5b800`) adaptado a la Secretaría Técnica de Boca Juniors.
+- **Formulario Inteligente de Alta:**
+  - Formateo automático en vivo de cotizaciones (ej. escribir `8m` o `8000000` se formatea como `$ 8.000.000`).
+  - Conversión automática de vigencia contractual (ej. `2a` → `2 años`, `6m` → `6 meses`, `1a 6m` → `1 año y 6 meses`).
+  - Carga simultánea de archivo/PDF al momento de proponer el jugador.
+- **Filtros Combinables:** Filtrado rápido por etapa del mercado (*Todos*, *Seguimiento*, *Negociación*, *Refuerzos*), por línea/posición (*Arqueros*, *Defensores*, *Mediocampistas*, *Delanteros*) y buscador en tiempo real por nombre, club, características o scout.
+- **Gestión de Scouts y Rol Administrador:**
+  - Modal **`Scouts (X/5)`** para visualizar a los compañeros del cuerpo técnico.
+  - El primer usuario registrado actúa como **Administrador / Director**, siendo el único autorizado (validado tanto en frontend como en backend) para dar de baja cuentas de scouts.
 
-# e2e tests
-$ npm run test:e2e
+---
 
-# test coverage
-$ npm run test:cov
-```
+## 🚀 Cómo levantar y conectarse al proyecto
 
-## Deployment
+### 1. Requisitos previos
+- **Node.js** (v18 o superior)
+- **Docker** (para levantar la base de datos MySQL)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### 2. Clonar el repositorio e instalar dependencias
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+    git clone https://github.com/Sanluki04/scouting-lab-cabj.git
+    cd scouting-lab-cabj
+    npm install
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+### 3. Configurar variables de entorno
+Copiá el archivo de plantilla `.env.template` a `.env` y completá los valores de conexión:
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+    cp .env.template .env
 
-## Observability
+Ejemplo de configuración en `.env`:
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+    PORT=3000
+    DB_HOST=localhost
+    DB_PORT=3306
+    DB_USER=root
+    DB_PASSWORD=root
+    DB_NAME=kanban_db
+    JWT_SECRET=clave_secreta_super_segura_cabj
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+### 4. Levantar la base de datos MySQL con Docker
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+    docker run -d --name mysql-kanban -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=kanban_db -p 3306:3306 mysql:8
 
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
+### 5. Iniciar el servidor NestJS
 
-```bash
-$ npx @nestjs/observe link
-```
+    npm run start:dev
 
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
+TypeORM creará automáticamente las tablas `usuarios` y `tareas` al conectarse.
 
-Or do it by hand:
+### 6. Ingresar a la aplicación
+Abrí el navegador y entrá a:
+- **Aplicación Web:** http://localhost:3000
+- **Prefijo API REST:** http://localhost:3000/api
 
-```bash
-$ npm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+> **💡 Tip para probar tiempo real (Socket.IO):** Registrá el primer usuario (que quedará como Administrador), abrí una segunda ventana o pestaña en modo incógnito, registrá un segundo scout y probá crear o mover un jugador de etapa para ver cómo se actualiza en vivo en ambas pantallas.
